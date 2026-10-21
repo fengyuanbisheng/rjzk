@@ -263,6 +263,12 @@ button.btn{border-radius:999px}
 /* 分享邀请提示 */
 .invite-tip{margin:8px 0 12px;padding:9px 12px;border-radius:12px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1.5px solid #fed7aa;color:#9a3412;font-size:.82rem;text-align:center}
 @media(max-width:420px){.portal-grid{gap:7px}.pg-cell .pg-ic{width:36px;height:36px;font-size:1.12rem}.pg-cell .pg-lb{font-size:.64rem}}
+
+/* ---- 营销三模块补充样式 ---- */
+.progress-fill{min-width:3px}
+.order-table input{margin:0}
+.select-tag{margin-bottom:10px}
+
 </style>
 </head>
 <body>
@@ -285,6 +291,7 @@ button.btn{border-radius:999px}
 <div id="printArea" class="print-only"></div>
 
 <script>
+
 "use strict";
 /* ==================== 常量与数据层 ==================== */
 const SK="zzzy_pro_v1", DEF_ADMIN="admin", DEF_ADMIN_PASS="admin123", DEF_PASS="123456";
@@ -300,7 +307,7 @@ const IDB_NAME="zzzy_pro_idb_v1", IDB_STORE="db", IDB_SNAP="snapshots";
 const IDB_SNAPSHOT_KEEP=5;
 const IDB_SNAPSHOT_INTERVAL=3*60*1000;
 const PAGE_SIZE=30;
-const DB_TABLES=["users","patients","materials","execEvals","items","auditLog","loginLog","settings","contents","pushes","loginCodes","referrals","checkins","points"];
+const DB_TABLES=["users","patients","materials","execEvals","items","auditLog","loginLog","settings","contents","pushes","loginCodes","referrals","checkins","points","coupons","userCoupons","orders","memberLogs","rewardSettles"];
 let idbDB=null, idbReady=false, idbErr=null;
 let saveQueueTimer=null, snapTimer=null;
 let listPage=1, listTotal=0;
@@ -682,6 +689,13 @@ function migrate(){
   DB.settings.shareVisits=Array.isArray(DB.settings.shareVisits)?DB.settings.shareVisits:[];
   DB.settings.shareVisits=DB.settings.shareVisits.filter(v=>v&&v.user);
   DB.settings.pointRule=DB.settings.pointRule||{checkin:1,eval:5,referral:20};
+  DB.settings.memberRule=DB.settings.memberRule&&Array.isArray(DB.settings.memberRule.levels)?DB.settings.memberRule:{levels:mktLevels()};
+  DB.settings.rewardRule=DB.settings.rewardRule||{};
+  DB.coupons=Array.isArray(DB.coupons)?DB.coupons:[];
+  DB.userCoupons=Array.isArray(DB.userCoupons)?DB.userCoupons:[];
+  DB.orders=Array.isArray(DB.orders)?DB.orders:[];
+  DB.memberLogs=Array.isArray(DB.memberLogs)?DB.memberLogs:[];
+  DB.rewardSettles=Array.isArray(DB.rewardSettles)?DB.rewardSettles:[];
   DB.contents=Array.isArray(DB.contents)?DB.contents:[];
   DB.pushes=Array.isArray(DB.pushes)?DB.pushes:[];
   DB.loginCodes=Array.isArray(DB.loginCodes)?DB.loginCodes:[];
@@ -739,7 +753,7 @@ function migrateRec(r){
   r.plan.totalTimes=_num(r.plan.totalTimes); r.plan.intervalDays=_num(r.plan.intervalDays);
   if(!r.followup||typeof r.followup!=="object") r.followup={};
   r.followup=Object.assign({revisitTime:"",nextCourse:"",healthGuide:"",otherSymptoms:""},r.followup||{});
-  r.appointments=Array.isArray(r.appointments)?r.appointments:[];
+  r.appointments=Array.isArray(r.appointments)?r.appointments:[];r.totalSpent=+r.totalSpent||0;r.manualLevel=+r.manualLevel||0;
   return r;
 }
 function save(){ try{localStorage.setItem(SK,JSON.stringify(DB));}catch(e){toast("保存失败：本地存储不可用");} idbEnqueueSave(); }
@@ -1167,7 +1181,7 @@ function adminTabs(k){
     {k:"deploy",l:"部署指引",fn:"renderDeploy()"},
     {k:"contents",l:"内容中心",fn:"renderAdminContents()"},
     {k:"pushes",l:"推送中心",fn:"renderAdminPushes()"},
-    {k:"opera",l:"营销运营",fn:"renderAdminOpera()"},
+    {k:"opera",l:"营销运营",fn:"renderAdminOpera()"},{k:"coupons",l:"优惠券",fn:"renderAdminCoupons()"},{k:"member",l:"会员等级",fn:"renderAdminMember()"},{k:"reward",l:"奖励结算",fn:"renderAdminReward()"},
     {k:"tuoke",l:"拓客统计",fn:"renderAdminTuoke()"},
     {k:"matrix",l:"互通矩阵",fn:"renderMatrix()"}
   ],k);
@@ -1519,7 +1533,7 @@ function renderExecHome(){
     {k:"home",l:"患者",fn:"renderExecHome()"},
     {k:"remind",l:"提醒("+reminderCount()+")",fn:"showReminderPanel()"},
     {k:"mats",l:"耗材库存",fn:"renderExecMats()"},
-    {k:"share",l:"我的分享码",fn:"renderMyShare()"}
+    {k:"share",l:"我的分享码",fn:"renderMyShare()"},{k:"reward",l:"我的奖励",fn:"renderExecReward()"}
   ],"home");
   h+=orgBannerHtml();
   h+='<div class="card no-print" style="margin-bottom:10px;padding:10px 14px"><div class="card-title" style="font-size:.9rem">值班计时：本次值班已工作 <span id="shiftTimer" style="color:var(--p)">0 分 0 秒</span></div></div>';
@@ -1553,7 +1567,7 @@ function renderExecMats(){
     {k:"home",l:"患者",fn:"renderExecHome()"},
     {k:"remind",l:"提醒("+reminderCount()+")",fn:"showReminderPanel()"},
     {k:"mats",l:"耗材库存",fn:"renderExecMats()"},
-    {k:"share",l:"我的分享码",fn:"renderMyShare()"}
+    {k:"share",l:"我的分享码",fn:"renderMyShare()"},{k:"reward",l:"我的奖励",fn:"renderExecReward()"}
   ],"mats");
   h+='<div class="card"><div class="card-title">库存一览</div><table class="view-table"><tr><th>名称</th><th>类别</th><th>规格</th><th>单位</th><th>库存</th><th>状态</th></tr>';
   DB.materials.forEach(m=>{h+='<tr><td>'+esc(m.name)+'</td><td>'+esc(m.category)+'</td><td>'+esc(m.spec)+'</td><td>'+esc(m.unit)+'</td><td>'+esc(m.stock)+'</td><td>'+(m.stock<5?'<span class="badge danger">低库存预警</span>':m.stock<10?'<span class="badge warn">库存偏少</span>':'<span class="badge ok">充足</span>')+'</td></tr>';});
@@ -1669,7 +1683,7 @@ function saveExecForm(pid,ri,andPrint){
   x.followup=document.getElementById("x_followup").value.trim();
   x.items=items;x.consumables=con;
   save();logOp("治疗执行录入",p.no+" "+p.patient.name+" 第"+(ri+1)+"次 @ "+timeSec);toast("第"+(ri+1)+"次治疗已保存，耗材已扣减");
-  addCheckin(p.id); awardReferrer(p.id);
+  addCheckin(p.id); awardReferrer(p.id); settleReferral(p.id, items, ri);
   if(andPrint)printRecord(pid);else renderHome();
 }
 
@@ -2937,7 +2951,7 @@ function renderMyShare(){
     {k:"home",l:"患者",fn:"renderExecHome()"},
     {k:"remind",l:"提醒("+reminderCount()+")",fn:"showReminderPanel()"},
     {k:"mats",l:"耗材库存",fn:"renderExecMats()"},
-    {k:"share",l:"我的分享码",fn:"renderMyShare()"}
+    {k:"share",l:"我的分享码",fn:"renderMyShare()"},{k:"reward",l:"我的奖励",fn:"renderExecReward()"}
   ],"share");
   const visits=DB.settings.shareVisits||[];
   const vc=visits.filter(v=>v.user===cur.username&&v.kind==="visit").length;
@@ -3563,7 +3577,7 @@ function renderPatientPortal(){
     +'<div class="pg-cell" onclick="renderPatientPushes()"><div class="pg-ic ic-s">🔔</div><div class="pg-lb">推送消息</div></div>'
     +'<div class="pg-cell" onclick="renderCheckin()"><div class="pg-ic ic-p">📅</div><div class="pg-lb">疗程打卡</div></div>'
     +'<div class="pg-cell" onclick="renderPoints()"><div class="pg-ic ic-o">⭐</div><div class="pg-lb">积分中心</div></div>'
-    +'<div class="pg-cell" onclick="renderReferral()"><div class="pg-ic ic-r">🤝</div><div class="pg-lb">邀请有礼</div></div>'
+    +'<div class="pg-cell" onclick="renderReferral()"><div class="pg-ic ic-r">🤝</div><div class="pg-lb">邀请有礼</div></div>'     +'<div class="pg-cell" onclick="renderPatientCoupons()"><div class="pg-ic ic-o">🎫</div><div class="pg-lb">我的优惠券</div></div>'     +'<div class="pg-cell" onclick="renderPatientMember()"><div class="pg-ic ic-p">👑</div><div class="pg-lb">会员等级</div></div>'
     +'</div>';
   const cs=(DB.contents||[]).filter(c=>c.pub).sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,3);
   if(cs.length){h+='<div class="section-h"><span class="sh-t">最新科普</span><span class="backlink" style="margin:0" onclick="renderPatientContents()">全部 ›</span></div>';
@@ -3624,6 +3638,349 @@ function saveOperaRules(){
   DB.settings.pointRule.eval=Math.max(0,parseInt(document.getElementById("op_ptev").value,10)||0);
   DB.settings.pointRule.referral=Math.max(0,parseInt(document.getElementById("op_ptrf").value,10)||0);
   save();toast("营销规则已保存");renderAdminOpera();
+}
+
+
+
+/* ==================== 营销三模块：优惠券 / 会员等级 / 转介绍奖励结算 ==================== */
+function mktLevels(){return [{k:1,name:"普通",threshold:0,discount:100,benefit:"基础服务，标准收费",icon:"🟢"},{k:2,name:"白银",threshold:2000,discount:98,benefit:"治疗费 98 折 · 生日礼遇",icon:"🥈"},{k:3,name:"黄金",threshold:5000,discount:95,benefit:"治疗费 95 折 · 优先预约",icon:"🥇"},{k:4,name:"钻石",threshold:10000,discount:90,benefit:"治疗费 9 折 · 专属客服 · 免费评估",icon:"💎"}];}
+function memberRule(){if(!DB.settings.memberRule||!Array.isArray(DB.settings.memberRule.levels)||!DB.settings.memberRule.levels.length){DB.settings.memberRule={levels:mktLevels()};}return DB.settings.memberRule;}
+function rewardRule(){const rr=DB.settings.rewardRule||{};return {mode:rr.mode==="coupon"?"coupon":"points",val:Math.max(0,+rr.val||(+((DB.settings.referralRule||{}).reward||20))||20),couponAmount:Math.max(1,+rr.couponAmount||10),couponDays:Math.max(1,+rr.couponDays||30),note:rr.note||""};}
+function levelList(){return memberRule().levels;}
+function levelBySpent(spent){let k=1;levelList().forEach(l=>{if(+spent>=(+l.threshold||0)&&(+l.k||0)>k)k=+l.k;});return k;}
+function patientLevel(p){if(!p)return 1;if(+p.manualLevel>0)return +p.manualLevel;return levelBySpent(p.totalSpent||0);}
+function levelObj(p){const k=patientLevel(p);return levelList().find(l=>+l.k===k)||{k:1,name:"普通",threshold:0,discount:100,benefit:"",icon:"🟢"};}
+function nextLevelObj(p){const k=patientLevel(p);return levelList().find(l=>+l.k===k+1)||null;}
+function levelDiscount(p){return (+levelObj(p).discount||100)/100;}
+function coupons(){DB.coupons=Array.isArray(DB.coupons)?DB.coupons:[];return DB.coupons;}
+function userCoupons(){DB.userCoupons=Array.isArray(DB.userCoupons)?DB.userCoupons:[];return DB.userCoupons;}
+function rewardSettles(){DB.rewardSettles=Array.isArray(DB.rewardSettles)?DB.rewardSettles:[];return DB.rewardSettles;}
+function memberLogs(){DB.memberLogs=Array.isArray(DB.memberLogs)?DB.memberLogs:[];return DB.memberLogs;}
+function orders(){DB.orders=Array.isArray(DB.orders)?DB.orders:[];return DB.orders;}
+function couponStatusText(c){if(!c)return "";if(c.status==="paused")return "已停用";if(c.status==="deleted")return "已删除";const n=todayKey();if(c.startDate&&c.endDate&&(n<c.startDate||n>c.endDate))return "已过期";return "发放中";}
+function couponActive(c){return couponStatusText(c)==="发放中";}
+function couponTypeText(c){return c.type==="discount"?"折扣":"满减";}
+function couponScopeText(c){const sc=[];if(c.itemIds&&c.itemIds.length){sc.push("限项目："+c.itemIds.map(id=>{const it=DB.items.find(x=>x.id===id);return it?it.name:"?";}).join("、")+"）");}if(c.diffLevel&&+c.diffLevel>0){sc.push("限难度≤"+c.diffLevel);}if(!sc.length)sc.push("全项目可用");return "("+sc.join("；")+")";}
+function couponUsableFor(c,p){if(!c||!couponActive(c))return false;if(c.itemIds&&c.itemIds.length){const pids=new Set((p.plan&&p.plan.items||[]).map(i=>i&&i.id));if(!c.itemIds.some(id=>pids.has(id)))return false;}if(c.diffLevel&&+c.diffLevel>0){if((+p.diffLevel||1)>(+c.diffLevel))return false;}return true;}
+function couponStatOf(c){const ucs=userCoupons().filter(x=>x.couponId===c.id);return {total:ucs.length,receive:ucs.filter(x=>x.src==="receive").length,used:ucs.filter(x=>x.status==="used").length};}
+function myCoupons(p){return userCoupons().filter(x=>x.owner===p.id||x.owner===cur.username).sort((a,b)=>String(b.receiveAt).localeCompare(String(a.receiveAt)));}
+function ucStatusText(uc){const c=coupons().find(x=>x.id===uc.couponId);if(!c)return "已失效";if(uc.status==="used")return "已使用";if(!couponActive(c))return "已失效";return "可使用";}
+function calCouponSave(c,p,total){if(!c||!couponActive(c)||!total)return 0;if(c.type==="reduce"){if((+c.threshold||0)>0&&total<+c.threshold)return 0;return Math.min(total,+c.amount||0);}const d=Math.min(10,Math.max(0.1,(+c.discount||10)));return Math.round(total*(1-d/10)*100)/100;}
+function usableCouponsFor(p){return myCoupons(p).filter(uc=>uc.status==="unused").map(uc=>({uc:uc,c:coupons().find(x=>x.id===uc.couponId)})).filter(o=>o.c&&couponUsableFor(o.c,p));}
+/* ---- 管理员：优惠券管理 ---- */
+function renderAdminCoupons(){
+  view="admin-coupons"; setHeader("管理员端 · 优惠券","创建 · 发放 · 核销统计","admin");
+  let h=adminTabs("coupons");
+  const list=coupons();
+  h+='<div class="stat-bar"><div class="stat"><b>'+list.length+'</b><span>券模板</span></div><div class="stat"><b>'+userCoupons().length+'</b><span>累计发放</span></div><div class="stat"><b>'+userCoupons().filter(x=>x.status==="used").length+'</b><span>累计核销</span></div></div>';
+  h+='<div class="btn-group" style="margin-bottom:10px"><button class="btn btn-p" onclick="couponEditModal()">＋ 新建优惠券</button></div>';
+  if(!list.length)h+='<div class="empty2"><div class="e2-ic">🎫</div><div>还没有优惠券</div><p style="font-size:.8rem;margin-top:6px">点击上方按钮创建第一张优惠券</p></div>';
+  else list.forEach(c=>{const st=couponStatOf(c);
+    h+='<div class="list-item"><div class="lt-top"><span style="font-weight:800;color:var(--p)">'+esc(c.name)+'</span><span class="chip">'+couponStatusText(c)+'</span></div>'
+    +'<div class="lt-info">类型：'+couponTypeText(c)+'　面额：'+(c.type==="discount"?(""+c.discount+" 折"):("¥"+(+c.amount||0)))+'　门槛：'+(+c.threshold>0?("满 ¥"+(+c.threshold)):"无门槛")+'</div>'
+    +'<div class="lt-info">有效期：'+(c.startDate||"-")+' ~ '+(c.endDate||"-")+'　总量：'+(+c.total>0?c.total:"不限")+'　限领：'+(+c.perLimit>0?c.perLimit:"不限")+'</div>'
+    +'<div class="lt-info">适用：'+couponScopeText(c)+'</div>'
+    +'<div class="lt-info">发放 '+st.total+' / 领取 '+st.receive+' / 核销 '+st.used+'</div>'
+    +'<div class="lt-acts"><button class="btn btn-sm btn-n" onclick="couponEditModal(\''+c.id+'\')">编辑</button><button class="btn btn-sm btn-o" onclick="toggleCoupon(\''+c.id+'\')">'+(c.status==="paused"?"启用":"停用")+'</button><button class="btn btn-sm" style="background:var(--dg);color:#fff" onclick="delCoupon(\''+c.id+'\')">删除</button></div></div>';
+  });
+  container.innerHTML=h;
+}
+function couponEditModal(id){
+  const c=id?coupons().find(x=>x.id===id):null;
+  showModal('<h3>'+(c?"编辑优惠券":"新建优惠券")+'</h3>'
+    +'<div class="field"><label>名称</label><input type="text" id="cp_name" class="modal-input" value="'+esc(c?c.name:"")+'" placeholder="如：新客立减 30 元"></div>'
+    +'<div class="field"><label>类型</label><select id="cp_type" class="modal-input"><option value="reduce"'+(c&&c.type==="reduce"?" selected":"")+'>满减（立减金额）</option><option value="discount"'+(c&&c.type==="discount"?" selected":"")+'>折扣（按折扣率）</option></select></div>'
+    +'<div class="field"><label>面额 / 折扣</label><input type="number" id="cp_amount" class="modal-input" value="'+(c?(c.type==="discount"?c.discount:c.amount):"")+'" placeholder="满减填金额(元)；折扣填 9.5 代表 95 折"></div>'
+    +'<div class="field"><label>使用门槛（满 X 元可用，0=无门槛）</label><input type="number" id="cp_threshold" class="modal-input" value="'+(c?c.threshold||0:0)+'"></div>'
+    +'<div class="field"><label>有效期起（YYYY-MM-DD）</label><input type="date" id="cp_start" class="modal-input" value="'+(c?c.startDate||"":todayKey())+'"></div>'
+    +'<div class="field"><label>有效期止（YYYY-MM-DD）</label><input type="date" id="cp_end" class="modal-input" value="'+(c?c.endDate||"":"")+'"></div>'
+    +'<div class="field"><label>发放总量（0=不限）</label><input type="number" id="cp_total" class="modal-input" value="'+(c?c.total||0:0)+'"></div>'
+    +'<div class="field"><label>每人限领（0=不限）</label><input type="number" id="cp_per" class="modal-input" value="'+(c?c.perLimit||0:0)+'"></div>'
+    +'<div class="field"><label>适用难度上限（0=不限难度）</label><input type="number" id="cp_diff" class="modal-input" value="'+(c?c.diffLevel||0:0)+'"></div>'
+    +'<div class="field"><label>适用项目ID（逗号分隔，留空=全部）</label><input type="text" id="cp_items" class="modal-input" value="'+esc(c?((c.itemIds||[]).join(",")):"")+'" placeholder="如 t1,t2"></div>'
+    +'<div class="btn-group"><button class="btn btn-p" onclick="saveCouponFromModal(\''+(c?c.id:"")+'\')">保存</button><button class="btn btn-o" onclick="closeModal()">取消</button></div>');
+}
+function saveCouponFromModal(id){
+  const name=document.getElementById("cp_name").value.trim();if(!name){toast("请输入名称");return;}
+  const type=document.getElementById("cp_type").value;
+  const amount=parseFloat(document.getElementById("cp_amount").value)||0;
+  if(amount<=0){toast("请输入有效面额/折扣");return;}
+  if(type==="discount"&&amount>10){toast("折扣请填 0.1~10 之间（如 9.5=95折）");return;}
+  const threshold=Math.max(0,parseFloat(document.getElementById("cp_threshold").value)||0);
+  const start=document.getElementById("cp_start").value, end=document.getElementById("cp_end").value;
+  const total=Math.max(0,parseInt(document.getElementById("cp_total").value,10)||0);
+  const per=Math.max(0,parseInt(document.getElementById("cp_per").value,10)||0);
+  const diff=Math.max(0,parseInt(document.getElementById("cp_diff").value,10)||0);
+  const itemIds=document.getElementById("cp_items").value.split(",").map(s=>s.trim()).filter(Boolean);
+  if(id){const c=coupons().find(x=>x.id===id);if(c){Object.assign(c,{name:name,type:type,amount:amount,discount:amount,threshold:threshold,startDate:start,endDate:end,total:total,perLimit:per,diffLevel:diff,itemIds:itemIds});}}
+  else{coupons().push({id:uid("cp"),name:name,type:type,amount:amount,discount:amount,threshold:threshold,startDate:start,endDate:end,total:total,perLimit:per,diffLevel:diff,itemIds:itemIds,status:"active",createdAt:nowStr()});}
+  save();closeModal();toast("优惠券已保存");renderAdminCoupons();
+}
+function toggleCoupon(id){const c=coupons().find(x=>x.id===id);if(!c)return;c.status=c.status==="paused"?"active":"paused";save();renderAdminCoupons();}
+function delCoupon(id){const c=coupons().find(x=>x.id===id);if(!c)return;c.status="deleted";c.deletedAt=nowStr();save();toast("优惠券已删除（已发放券同步失效）");renderAdminCoupons();}
+function receiveCoupon(cid){
+  const c=coupons().find(x=>x.id===cid);if(!c||!couponActive(c)){toast("该优惠券不可领取");return;}
+  const p=DB.patients.find(x=>x.id===cur.patientId);if(!p){toast("请先登录患者账号");return;}
+  const st=couponStatOf(c);
+  if(+c.total>0&&st.total>=c.total){toast("优惠券已领完");return;}
+  const mine=myCoupons(p).filter(x=>x.couponId===cid).length;
+  if(+c.perLimit>0&&mine>=c.perLimit){toast("已达每人限领数量");return;}
+  userCoupons().push({id:uid("uc"),couponId:cid,owner:p.id,ownerName:p.patient.name||p.no,src:"receive",status:"unused",receiveAt:nowStr(),useAt:"",orderId:"",note:""});
+  save();toast("领取成功，可在「我的优惠券」查看");renderPatientCoupons();
+}
+/* ---- 患者端：我的优惠券 / 治疗下单 ---- */
+function renderPatientCoupons(){
+  const p=DB.patients.find(x=>x.id===cur.patientId);
+  view="patient-coupons"; setHeader("患者端 · 我的优惠券","领取与使用规则","patient");
+  let h=patientTop()+'<div class="card"><div class="card-title">🎫 可领取优惠券</div>';
+  const avail=coupons().filter(c=>couponActive(c));
+  if(!avail.length)h+='<div class="empty2"><div class="e2-ic">🎫</div><div>暂无发放中的优惠券</div></div>';
+  else avail.forEach(c=>{const mine=myCoupons(p).filter(x=>x.couponId===c.id).length;const st=couponStatOf(c);
+    const reach=(+c.total>0&&st.total>=c.total)||(+c.perLimit>0&&mine>=c.perLimit);
+    h+='<div class="list-item"><div class="lt-top"><span style="font-weight:800;color:var(--p)">'+esc(c.name)+'</span><span class="chip">'+(c.type==="discount"?c.discount+"折":"立减 ¥"+(+c.amount||0))+'</span></div>'
+    +'<div class="lt-info">门槛：'+(+c.threshold>0?"满 ¥"+(+c.threshold):"无门槛")+'　有效期：'+(c.startDate||"-")+' ~ '+(c.endDate||"-")+'</div>'
+    +'<div class="lt-info">适用：'+couponScopeText(c)+'</div>'
+    +'<div class="lt-acts"><button class="btn btn-sm btn-p" '+(reach?"disabled":"")+' onclick="receiveCoupon(\''+c.id+'\')">'+(reach?"已达上限":"立即领取")+'</button></div></div>';
+  });
+  h+='</div><div class="card"><div class="card-title">我的优惠券（'+myCoupons(p).length+'）</div>';
+  const mine=myCoupons(p);
+  if(!mine.length)h+='<div class="empty2"><div class="e2-ic">💳</div><div>还没有领取优惠券</div></div>';
+  else mine.forEach(uc=>{const c=coupons().find(x=>x.id===uc.couponId);const st=ucStatusText(uc);
+    h+='<div class="list-item"><div class="lt-top"><span style="font-weight:800">'+(c?esc(c.name):"未知券")+'</span><span class="chip">'+st+'</span></div>'
+    +'<div class="lt-info">'+(c?(c.type==="discount"?c.discount+"折":"立减 ¥"+(+c.amount||0))+"　门槛："+(+c.threshold>0?"满 ¥"+(+c.threshold):"无门槛"):"")+'</div>'
+    +'<div class="lt-info">领取时间：'+esc(uc.receiveAt)+(uc.useAt?"　使用时间："+esc(uc.useAt):"")+'</div>'
+    +(uc.status==="unused"&&st==="可使用"?'<div class="lt-acts"><button class="btn btn-sm btn-n" onclick="renderPatientOrder(\''+uc.id+'\')">去下单使用</button></div>':"")
+    +'</div>';
+  });
+  h+='</div><div class="card"><div class="card-title">使用规则</div>'
+    +'<div class="rule-row">· 满减券：实付金额 ≥ 门槛时可抵扣面额</div>'
+    +'<div class="rule-row">· 折扣券：按折扣率直接打折（可与会员折扣同享）</div>'
+    +'<div class="rule-row">· 每笔订单限用一张券，核销后不可恢复</div></div>';
+  container.innerHTML=h+patientBottomNav("portal");
+}
+function renderPatientOrder(ucId){
+  const p=DB.patients.find(x=>x.id===cur.patientId);
+  view="patient-order"; setHeader("患者端 · 治疗下单","结算 · 会员折扣 · 优惠券","patient");
+  let h=patientTop();
+  const items=DB.items||[];
+  if(!items.length){h+='<div class="empty"><div class="icon">📋</div><div>暂无可下单项目</div></div>';container.innerHTML=h+patientBottomNav("portal");return;}
+  const lv=levelObj(p), dis=levelDiscount(p);
+  const usable=usableCouponsFor(p);
+  h+='<div class="point-card" style="background:linear-gradient(135deg,#0284c7,#0e7490)"><div class="pc-num">'+esc(lv.name)+' 会员</div><div class="pc-row"><span>治疗费 '+(+lv.discount)+' 折'+(dis<1?'（已省 '+(Math.round((1-dis)*10000)/100)+'%）':'')+'</span><span>累计消费 ¥'+(+p.totalSpent||0).toFixed(2)+'</span></div></div>';
+  h+='<div class="card"><div class="card-title">选择项目（勾选数量 ≥1 参与结算）</div>';
+  h+='<table class="view-table"><tr><th>项目</th><th>难度</th><th>单价(¥)</th><th>数量</th></tr>';
+  items.forEach(it=>{h+='<tr><td>'+esc(it.name)+'</td><td>'+(it.diff||1)+'</td><td><input type="number" id="od_price_'+it.id+'" class="modal-input" style="width:76px;margin:0" value="'+(+it.price||0)+'"></td><td><input type="number" id="od_qty_'+it.id+'" class="modal-input" style="width:56px;margin:0" value="0" min="0"></td></tr>';});
+  h+='</table>';
+  h+='<div style="font-size:.76rem;color:var(--mu);margin-top:6px">单价可自行调整，实付金额将计入会员累计消费。</div></div>';
+  h+='<div class="card"><div class="card-title">优惠券</div>';
+  if(!usable.length)h+='<div style="font-size:.82rem;color:var(--mu)">暂无可用的优惠券（需与所选项目/难度匹配，可先去领取）</div>';
+  else{let opt='<option value="">不使用优惠券</option>';usable.forEach(o=>{opt+='<option value="'+o.uc.id+'"'+(ucId===o.uc.id?" selected":"")+'>'+esc(o.c.name)+'（'+(o.c.type==="discount"?o.c.discount+"折":"减 ¥"+(+o.c.amount||0))+'）</option>';});
+    h+='<select id="od_coupon" class="modal-input" onchange="previewOrder()">'+opt+'</select>';}
+  h+='</div>';
+  h+='<div class="card" id="od_preview"><div class="card-title">结算预览</div><div id="od_preview_body" style="font-size:.85rem;color:var(--mu)">请选择项目后自动计算</div></div>';
+  h+='<div class="btn-group"><button class="btn btn-p" onclick="placeOrder()">确认下单并结算</button><button class="btn btn-o" onclick="renderPatientCoupons()">返回</button></div>';
+  container.innerHTML=h+patientBottomNav("portal");
+  previewOrder();
+}
+function calcOrder(p){
+  const items=DB.items||[];
+  let original=0;const lines=[];
+  items.forEach(it=>{const qty=Math.max(0,parseInt(document.getElementById("od_qty_"+it.id).value,10)||0);const price=Math.max(0,parseFloat(document.getElementById("od_price_"+it.id).value)||0);if(qty>0){lines.push({id:it.id,name:it.name,diff:it.diff||1,price:price,qty:qty});original+=price*qty;}});
+  const memberRate=levelDiscount(p);
+  const memberSave=Math.round((original-original*memberRate)*100)/100;
+  const afterMember=Math.round((original*memberRate)*100)/100;
+  const couponEl=document.getElementById("od_coupon");
+  const uc=couponEl&&couponEl.value?userCoupons().find(x=>x.id===couponEl.value):null;
+  const c=uc?coupons().find(x=>x.id===uc.couponId):null;
+  let couponSave=0;
+  if(c){if(c.type==="reduce"){if((+c.threshold||0)>0&&afterMember<+c.threshold)couponSave=0;else couponSave=Math.min(afterMember,+c.amount||0);}else{const d=Math.min(10,Math.max(0.1,(+c.discount||10)));couponSave=Math.round(afterMember*(1-d/10)*100)/100;}}
+  const pay=Math.max(0,Math.round((afterMember-couponSave)*100)/100);
+  return {original:original,memberRate:memberRate,memberSave:memberSave,afterMember:afterMember,coupon:uc?uc:null,couponObj:c,couponSave:couponSave,pay:pay,lines:lines};
+}
+function previewOrder(){const p=DB.patients.find(x=>x.id===cur.patientId);if(!p)return;const o=calcOrder(p);const b=document.getElementById("od_preview_body");if(!b)return;
+  b.innerHTML='<div class="rule-row">项目原价：¥'+o.original.toFixed(2)+'</div>'
+    +'<div class="rule-row">会员折扣（'+levelObj(p).name+' '+Math.round(o.memberRate*100)+'%）：-¥'+o.memberSave.toFixed(2)+'</div>'
+    +(o.coupon?'<div class="rule-row">优惠券 '+esc(o.couponObj?o.couponObj.name:"")+'：-¥'+o.couponSave.toFixed(2)+'</div>':'')
+    +'<div class="rule-row" style="font-weight:800;font-size:1.05rem;color:var(--p)">应付：¥'+o.pay.toFixed(2)+'</div>';
+}
+function placeOrder(){
+  const p=DB.patients.find(x=>x.id===cur.patientId);if(!p){toast("请先登录患者账号");return;}
+  const o=calcOrder(p);
+  if(!o.lines.length){toast("请至少选择一个项目并填写数量");return;}
+  if(o.pay<=0){toast("结算金额为 0，无需下单");return;}
+  const order={id:uid("od"),pid:p.id,patientNo:p.no,patientName:p.patient.name||p.no,at:nowStr(),lines:o.lines,original:o.original,memberRate:o.memberRate,memberSave:o.memberSave,couponId:o.coupon?o.coupon.couponId:"",couponName:o.couponObj?o.couponObj.name:"",couponSave:o.couponSave,pay:o.pay,status:"paid"};
+  orders().push(order);
+  if(o.coupon){o.coupon.status="used";o.coupon.useAt=nowStr();o.coupon.orderId=order.id;}
+  const oldSpent=+p.totalSpent||0;
+  p.totalSpent=Math.round((oldSpent+o.pay)*100)/100;
+  if(!(+p.manualLevel>0)){
+    const oldAuto=levelBySpent(oldSpent), newAuto=levelBySpent(p.totalSpent);
+    if(newAuto>oldAuto){const lv=levelList().find(x=>+x.k===newAuto);memberLogs().push({id:uid("ml"),pid:p.id,patientName:p.patient.name||p.no,oldLevel:oldAuto,newLevel:newAuto,reason:"累计消费 ¥"+(+p.totalSpent).toFixed(2)+" 自动升级",at:nowStr()});toast("恭喜升级为 "+lv.name+" 会员！");}
+  }
+  save();logOp("患者下单",p.no+" "+p.patient.name+" 实付 ¥"+o.pay.toFixed(2)+" 会员等级"+levelObj(p).name);toast("下单成功，实付 ¥"+o.pay.toFixed(2));renderPatientMember();
+}
+/* ---- 患者端：会员中心 ---- */
+function renderPatientMember(){
+  const p=DB.patients.find(x=>x.id===cur.patientId);
+  view="patient-member"; setHeader("患者端 · 会员中心","等级权益 · 成长进度","patient");
+  const lv=levelObj(p), nxt=nextLevelObj(p);
+  const spent=+p.totalSpent||0;
+  let h=patientTop()+'<div class="point-card" style="background:linear-gradient(135deg,#0e7490,#0d9488)"><div class="pc-num">'+esc(lv.name)+' 会员</div><div class="pc-row"><span>治疗费 '+(+lv.discount)+' 折</span><span>累计消费 ¥'+spent.toFixed(2)+'</span></div></div>';
+  h+='<div class="card"><div class="card-title">成长进度</div>';
+  if(nxt){const curTh=lv.threshold||0,nTh=+nxt.threshold||0;const pct=nTh>curTh?Math.min(100,Math.round((spent-curTh)/(nTh-curTh)*100)):0;
+    h+='<div class="progress-bar"><div class="progress-fill" style="width:'+Math.max(0,pct)+'%"></div></div>'
+    +'<div class="rule-row">距升级「'+esc(nxt.name)+'」还差 ¥'+(Math.max(0,nTh-spent)).toFixed(2)+'</div>';}
+  else{h+='<div class="rule-row">已达到最高等级，感谢您的信赖！</div>';}
+  h+='</div><div class="card"><div class="card-title">等级权益</div>';
+  levelList().forEach(l=>{h+='<div class="rule-row">'+esc(l.icon)+' '+esc(l.name)+'：消费满 ¥'+(+l.threshold)+' · 治疗费 '+(+l.discount)+' 折 · '+esc(l.benefit)+(patientLevel(p)===+l.k?' <span class="chip">当前等级</span>':'')+'</div>';});
+  h+='</div><div class="card"><div class="card-title">消费明细</div>';
+  const mine=orders().filter(x=>x.pid===p.id).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  if(!mine.length)h+='<div class="empty2"><div class="e2-ic">🧾</div><div>暂无消费记录</div><p style="font-size:.8rem;margin-top:6px">在「治疗下单」完成结算后自动累计消费</p></div>';
+  else mine.forEach(o=>{h+='<div class="point-item"><span style="flex:1">'+esc(o.at)+'<br><span style="color:var(--mu);font-size:.75rem">'+(o.lines||[]).map(l=>esc(l.name)+"×"+l.qty).join("、")+'</span></span><span style="font-weight:800;color:var(--p)">¥'+o.pay.toFixed(2)+'</span></div>';});
+  h+='</div>';
+  container.innerHTML=h+patientBottomNav("portal");
+}
+/* ---- 管理员：会员等级 ---- */
+function renderAdminMember(){
+  view="admin-member"; setHeader("管理员端 · 会员等级","等级规则 · 分布统计 · 手动调整","admin");
+  let h=adminTabs("member");
+  const lv=levelList();
+  h+='<div class="stat-bar">';lv.forEach(x=>{const cnt=DB.patients.filter(p=>patientLevel(p)===+x.k).length;h+='<div class="stat"><b>'+cnt+'</b><span>'+esc(x.name)+'</span></div>';});h+='</div>';
+  h+='<div class="card"><div class="card-title">等级规则</div>';
+  lv.forEach(x=>{h+='<div class="rule-row">'+esc(x.icon)+' '+esc(x.name)+'：满 ¥'+(+x.threshold)+' · '+(+x.discount)+' 折 · '+esc(x.benefit)+'</div>';});
+  h+='<div class="btn-group"><button class="btn btn-n" onclick="memberRuleModal()">统一调整等级规则</button></div></div>';
+  h+='<div class="card"><div class="card-title">患者等级（点击可手动调整）</div>';
+  const ps=DB.patients.filter(p=>!p.archived);
+  if(!ps.length)h+='<div class="empty2"><div class="e2-ic">👥</div><div>暂无患者</div></div>';
+  else ps.forEach(p=>{const lv2=levelObj(p);
+    h+='<div class="point-item" style="cursor:pointer" onclick="adjustLevelModal(\''+p.id+'\')"><span style="flex:1">'+esc(p.patient.name||p.no)+' <span style="color:var(--mu)">'+esc(p.no)+'</span><br><span style="color:var(--mu);font-size:.75rem">累计消费 ¥'+(+p.totalSpent||0).toFixed(2)+'</span></span><span class="chip">'+esc(lv2.name)+'</span></div>';
+  });
+  h+='</div>';
+  container.innerHTML=h;
+}
+function memberRuleModal(){
+  const lv=levelList();
+  showModal('<h3>等级规则（门槛 / 折扣 / 权益）</h3>'
+    +lv.map(x=>'<div class="field"><label>'+esc(x.name)+'：消费门槛（元）</label><input type="number" id="ml_th_'+x.k+'" class="modal-input" value="'+(+x.threshold)+'"><label>折扣率（95=95折，100=无折扣）</label><input type="number" id="ml_dc_'+x.k+'" class="modal-input" value="'+(+x.discount)+'"><label>权益说明</label><input type="text" id="ml_bn_'+x.k+'" class="modal-input" value="'+esc(x.benefit)+'"></div>').join("")
+    +'<div class="btn-group"><button class="btn btn-p" onclick="saveMemberRule()">保存</button><button class="btn btn-o" onclick="closeModal()">取消</button></div>');
+}
+function saveMemberRule(){
+  levelList().forEach(x=>{x.threshold=Math.max(0,parseFloat(document.getElementById("ml_th_"+x.k).value)||0);x.discount=Math.min(100,Math.max(0,parseFloat(document.getElementById("ml_dc_"+x.k).value)||100));const bn=document.getElementById("ml_bn_"+x.k).value.trim();if(bn)x.benefit=bn;});
+  save();closeModal();toast("等级规则已保存");renderAdminMember();
+}
+function adjustLevelModal(pid){
+  const p=DB.patients.find(x=>x.id===pid);if(!p)return;
+  showModal('<h3>调整会员等级：'+esc(p.patient.name||p.no)+'</h3>'
+    +'<div class="field"><label>等级</label><select id="al_level" class="modal-input">'
+    +levelList().map(x=>'<option value="'+x.k+'"'+(patientLevel(p)===+x.k?" selected":"")+'>'+esc(x.name)+'（'+(+x.discount)+'折）</option>').join("")
+    +'<option value="0"'+(+p.manualLevel>0?"":" selected")+'>自动（按消费金额）</option></select></div>'
+    +'<div class="btn-group"><button class="btn btn-p" onclick="saveAdjustLevel(\''+p.id+'\')">保存</button><button class="btn btn-o" onclick="closeModal()">取消</button></div>');
+}
+function saveAdjustLevel(pid){
+  const p=DB.patients.find(x=>x.id===pid);if(!p)return;
+  const k=parseInt(document.getElementById("al_level").value,10)||0;
+  p.manualLevel=k;
+  memberLogs().push({id:uid("ml"),pid:p.id,patientName:p.patient.name||p.no,oldLevel:patientLevel(p),newLevel:k>0?k:levelBySpent(p.totalSpent||0),reason:k>0?("管理员手动调整为 "+levelList().find(x=>+x.k===k).name):"恢复自动划级",at:nowStr()});
+  save();closeModal();toast("等级已调整");renderAdminMember();
+}
+/* ---- 转介绍奖励结算 ---- */
+function findReferrerByCode(code){if(!code)return null;return DB.users.find(u=>u.username===code)||null;}
+function grantRewardCoupon(ownerName,amount,days,note){
+  const end=new Date();end.setDate(end.getDate()+(+days||30));
+  const cid=uid("cp");
+  coupons().push({id:cid,name:"转介绍奖励券",type:"reduce",amount:amount,threshold:0,startDate:dateKeyStr(new Date()),endDate:dateKeyStr(end),total:0,perLimit:0,diffLevel:0,itemIds:[],status:"active",source:"reward",createdAt:nowStr()});
+  userCoupons().push({id:uid("uc"),couponId:cid,owner:ownerName,ownerName:ownerName,src:"reward",status:"unused",receiveAt:nowStr(),useAt:"",orderId:"",note:note});
+}
+function settleReferral(pid,items,ri){
+  const p=DB.patients.find(x=>x.id===pid);if(!p)return;
+  const code=p.referrerCode||p.sourceRef||"";
+  if(!code)return;
+  if(rewardSettles().some(s=>s.pid===pid&&s.idx===ri))return;
+  const rr=rewardRule();
+  const ref=findReferrerByCode(code);
+  const itemNames=(items||[]).map(i=>i&&i.name?i.name:i).join("、");
+  let rewardType="points",rewardVal=rr.val,detail="";
+  if(rr.mode==="coupon"){rewardType="coupon";rewardVal=rr.couponAmount;grantRewardCoupon(code,rr.couponAmount,rr.couponDays,"转介绍奖励（"+(p.patient.name||p.no)+" 完成治疗）");detail="已发放 "+rr.couponAmount+" 元优惠券";}
+  else{addPoints(code,rr.val,"转介绍奖励（患者 "+(p.patient.name||p.no)+" 完成第"+(+ri+1)+"次治疗）");detail="已发放 "+rr.val+" 积分";}
+  rewardSettles().push({id:uid("rs"),pid:pid,patientName:p.patient.name||p.no,patientNo:p.no,idx:ri,refCode:code,refName:ref?ref.displayName:code,itemName:itemNames||"",rewardType:rewardType,rewardVal:rewardVal,status:"settled",at:nowStr(),detail:detail});
+  save();
+}
+/* ---- 执行人端：我的奖励 ---- */
+function renderExecReward(){
+  view="exec-reward"; setHeader("执行人端 · 我的奖励","转介绍奖励结算","nurse");
+  let h=tabsHtml([
+    {k:"home",l:"患者",fn:"renderExecHome()"},
+    {k:"remind",l:"提醒("+reminderCount()+")",fn:"showReminderPanel()"},
+    {k:"mats",l:"耗材库存",fn:"renderExecMats()"},
+    {k:"share",l:"我的分享码",fn:"renderMyShare()"},
+    {k:"reward",l:"我的奖励",fn:"renderExecReward()"}
+  ],"reward");
+  h+='<div class="card no-print" style="margin-bottom:10px;padding:10px 14px"><div class="card-title" style="font-size:.9rem">转介绍奖励：每成功一单自动结算</div></div>';
+  const mine=rewardSettles().filter(s=>s.refCode===cur.username).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  const pts=mine.filter(s=>s.rewardType==="points").reduce((s,x)=>s+(+x.rewardVal||0),0);
+  const myCoups=userCoupons().filter(x=>x.owner===cur.username&&x.src==="reward");
+  h+='<div class="stat-bar"><div class="stat"><b>'+mine.length+'</b><span>结算单数</span></div><div class="stat"><b>'+pts+'</b><span>奖励积分</span></div><div class="stat"><b>'+myCoups.length+'</b><span>奖励券(张)</span></div></div>';
+  h+='<div class="card"><div class="card-title">结算明细</div>';
+  if(!mine.length)h+='<div class="empty2"><div class="e2-ic">💰</div><div>暂无奖励记录</div><p style="font-size:.8rem;margin-top:6px">分享您的邀请码，被介绍患者完成治疗后自动结算</p></div>';
+  else mine.forEach(s=>{h+='<div class="point-item"><span style="flex:1">'+esc(s.patientName||s.patientNo)+' 完成第 '+(+s.idx+1)+' 次治疗<br><span style="color:var(--mu);font-size:.75rem">'+esc(s.itemName)+' · '+esc(s.at)+'</span></span><span class="pv pv-in">'+(s.rewardType==="coupon"?("券 ¥"+(+s.rewardVal)):("+"+s.rewardVal+" 分"))+'</span></div>';});
+  h+='</div><div class="card"><div class="card-title">我的奖励券</div>';
+  if(!myCoups.length)h+='<div class="empty2"><div class="e2-ic">🎫</div><div>暂无奖励券</div></div>';
+  else myCoups.forEach(uc=>{const c=coupons().find(x=>x.id===uc.couponId);h+='<div class="point-item"><span style="flex:1">'+(c?esc(c.name):"奖励券")+'<br><span style="color:var(--mu);font-size:.75rem">'+esc(uc.note||"")+' · '+esc(uc.receiveAt)+'</span></span><span class="pv pv-in">¥'+(c?(+c.amount||0):0)+'</span></div>';});
+  h+='</div>';
+  container.innerHTML=h;
+}
+/* ---- 患者端：我的邀请奖励 ---- */
+function renderPatientReward(){
+  const p=DB.patients.find(x=>x.id===cur.patientId);
+  view="patient-reward"; setHeader("患者端 · 邀请奖励","我的转介绍结算","patient");
+  const mine=rewardSettles().filter(s=>s.refCode===cur.username).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  const pts=mine.filter(s=>s.rewardType==="points").reduce((s,x)=>s+(+x.rewardVal||0),0);
+  const myCoups=userCoupons().filter(x=>x.owner===cur.username&&x.src==="reward");
+  let h=patientTop()+'<div class="stat-bar"><div class="stat"><b>'+mine.length+'</b><span>结算单数</span></div><div class="stat"><b>'+pts+'</b><span>奖励积分</span></div><div class="stat"><b>'+myCoups.length+'</b><span>奖励券(张)</span></div></div>';
+  h+='<div class="card"><div class="card-title">结算明细</div>';
+  if(!mine.length)h+='<div class="empty2"><div class="e2-ic">🤝</div><div>暂无奖励记录</div><p style="font-size:.8rem;margin-top:6px">在「邀请有礼」中绑定邀请码，被邀请患者完成治疗后您将自动获得奖励</p></div>';
+  else mine.forEach(s=>{h+='<div class="point-item"><span style="flex:1">'+esc(s.patientName||s.patientNo)+' 完成第 '+(+s.idx+1)+' 次治疗<br><span style="color:var(--mu);font-size:.75rem">'+esc(s.at)+'</span></span><span class="pv pv-in">'+(s.rewardType==="coupon"?("券 ¥"+(+s.rewardVal)):("+"+s.rewardVal+" 分"))+'</span></div>';});
+  h+='</div><div class="card"><div class="card-title">我的奖励券</div>';
+  if(!myCoups.length)h+='<div class="empty2"><div class="e2-ic">🎫</div><div>暂无奖励券</div></div>';
+  else myCoups.forEach(uc=>{const c=coupons().find(x=>x.id===uc.couponId);h+='<div class="point-item"><span style="flex:1">'+(c?esc(c.name):"奖励券")+'<br><span style="color:var(--mu);font-size:.75rem">'+esc(uc.note||"")+' · '+esc(uc.receiveAt)+'</span></span><span class="pv pv-in">¥'+(c?(+c.amount||0):0)+'</span></div>';});
+  h+='</div>';
+  container.innerHTML=h+patientBottomNav("portal");
+}
+/* ---- 管理员：奖励结算 ---- */
+function renderAdminReward(){
+  view="admin-reward"; setHeader("管理员端 · 奖励结算","规则配置 · 结算记录 · 统计","admin");
+  let h=adminTabs("reward");
+  const rr=rewardRule();
+  const ss=rewardSettles().sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  const pts=ss.filter(s=>s.rewardType==="points").reduce((s,x)=>s+(+x.rewardVal||0),0);
+  const coups=ss.filter(s=>s.rewardType==="coupon").length;
+  h+='<div class="stat-bar"><div class="stat"><b>'+ss.length+'</b><span>结算单数</span></div><div class="stat"><b>'+pts+'</b><span>累计积分</span></div><div class="stat"><b>'+coups+'</b><span>奖励券(单)</span></div></div>';
+  h+='<div class="card"><div class="card-title">奖励规则</div>'
+    +'<div class="rule-row">当前规则：'+(rr.mode==="coupon"?"每单奖励 "+rr.couponAmount+" 元优惠券（有效期 "+rr.couponDays+" 天）":"每单奖励 "+rr.val+" 积分")+'</div>'
+    +'<div class="rule-row">说明：被介绍患者每完成一次治疗自动结算一次（同一次治疗不重复）。</div>'
+    +'<div class="btn-group"><button class="btn btn-n" onclick="rewardRuleModal()">配置奖励规则</button></div></div>';
+  h+='<div class="card"><div class="card-title">结算记录</div>';
+  if(!ss.length)h+='<div class="empty2"><div class="e2-ic">📋</div><div>暂无结算记录</div><p style="font-size:.8rem;margin-top:6px">被介绍患者完成治疗后自动生成</p></div>';
+  else ss.forEach(s=>{h+='<div class="point-item"><span style="flex:1">'+esc(s.refName||s.refCode)+' 邀请 <b>'+esc(s.patientName||s.patientNo)+'</b> 完成治疗<br><span style="color:var(--mu);font-size:.75rem">'+esc(s.itemName)+' · '+esc(s.at)+'</span></span><span class="pv pv-in">'+(s.rewardType==="coupon"?("券 ¥"+(+s.rewardVal)):("+"+s.rewardVal+" 分"))+'</span></div>';});
+  h+='</div>';
+  container.innerHTML=h;
+}
+function rewardRuleModal(){
+  const rr=rewardRule();
+  showModal('<h3>转介绍奖励规则</h3>'
+    +'<div class="field"><label>奖励类型</label><select id="rr_mode" class="modal-input"><option value="points"'+(rr.mode==="points"?" selected":"")+'>积分</option><option value="coupon"'+(rr.mode==="coupon"?" selected":"")+'>优惠券</option></select></div>'
+    +'<div class="field"><label>每单奖励积分（模式=积分时生效）</label><input type="number" id="rr_val" class="modal-input" value="'+rr.val+'"></div>'
+    +'<div class="field"><label>每单奖励券金额（元，模式=优惠券时生效）</label><input type="number" id="rr_camt" class="modal-input" value="'+rr.couponAmount+'"></div>'
+    +'<div class="field"><label>奖励券有效期（天）</label><input type="number" id="rr_cdays" class="modal-input" value="'+rr.couponDays+'"></div>'
+    +'<div class="btn-group"><button class="btn btn-p" onclick="saveRewardRule()">保存</button><button class="btn btn-o" onclick="closeModal()">取消</button></div>');
+}
+function saveRewardRule(){
+  const mode=document.getElementById("rr_mode").value;
+  const val=Math.max(0,parseInt(document.getElementById("rr_val").value,10)||0);
+  const camt=Math.max(1,parseInt(document.getElementById("rr_camt").value,10)||10);
+  const cdays=Math.max(1,parseInt(document.getElementById("rr_cdays").value,10)||30);
+  DB.settings.rewardRule={mode:mode,val:val,couponAmount:camt,couponDays:cdays,note:mode==="coupon"?("每成功一单奖励 "+camt+" 元优惠券"):("每成功一单奖励 "+val+" 积分")};
+  save();closeModal();toast("奖励规则已保存");renderAdminReward();
 }
 
 </script>
