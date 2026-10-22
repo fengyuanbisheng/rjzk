@@ -268,6 +268,8 @@ button.btn{border-radius:999px}
 .progress-fill{min-width:3px}
 .order-table input{margin:0}
 .select-tag{margin-bottom:10px}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+.shake{animation:shake .4s}
 
 </style>
 </head>
@@ -878,8 +880,9 @@ function showLogin(){
     +'<div class="card"><div class="card-title">账号登录</div>'
     +'<div class="field"><label>账号</label><input type="text" id="lgUser" placeholder="用户名 / 简码 / 手机号 / 身份证" autocomplete="username" oninput="onUserInput()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();onUserEnter();}"></div>'
     +'<div id="lgDrop" class="login-drop"></div>'
-    +'<div class="field"><label>密码</label><div style="display:flex;align-items:center;gap:2px"><input type="password" id="lgPass" placeholder="请输入密码" autocomplete="current-password" style="flex:1;padding-right:2.1rem" onkeydown="if(event.key===\'Enter\'){event.preventDefault();doLoginEnter();}"><button type="button" onclick="togglePwd(\'lgPass\',this)" title="显示密码" style="flex:0 0 auto;background:none;border:none;cursor:pointer;font-size:1.15rem;line-height:1;padding:4px 6px;color:var(--mu)">👁</button></div></div>'
-    +'<button class="btn btn-p" onclick="doLogin()">登 录</button>'
+    +'<div class="field"><label>密码</label><div style="display:flex;align-items:center;gap:2px"><input type="password" id="lgPass" placeholder="请输入密码" autocomplete="current-password" style="flex:1;padding-right:2.1rem" oninput="loginErrClear()" onkeydown="if(event.key===\'Enter\'){event.preventDefault();doLoginEnter();}"><button type="button" onclick="togglePwd(\'lgPass\',this)" title="显示密码" style="flex:0 0 auto;background:none;border:none;cursor:pointer;font-size:1.15rem;line-height:1;padding:4px 6px;color:var(--mu)">👁</button></div></div>'
+    +'<div id="lgErr" class="login-err" style="display:none;color:#e74c3c;font-size:.85rem;margin:6px 0 2px;text-align:center;font-weight:600"></div>'
+    +'<button class="btn btn-p" id="btnLogin" onclick="doLogin()">登 录</button>'
     +'<button class="btn btn-wx" style="margin-top:8px" onclick="doWechatLogin()">使用微信登录</button>'
     +'<div class="btn-group" style="margin-top:2px"><button class="btn btn-o" onclick="qrLoginModal()">📱 扫码登录 · 电脑授权</button></div>'
     +'<button class="btn btn-n" style="margin-top:8px" onclick="installNow()">⬇ 安装到电脑 / 手机</button>'
@@ -899,7 +902,7 @@ function doLogin(){
       if(pp)return doPatientAutoLogin(pp);
     }
     if(!p){toast("请输入密码");return;}
-    if(byName.password!==p){toast("用户名或密码错误");return;}
+    if(byName.password!==p){loginErr("用户名或密码错误");return;}
     if(byName.role==="patient"){
       const st=checkDeviceLock(byName);
       if(st){toast(st);return;}
@@ -913,7 +916,18 @@ function doLogin(){
   }
   const pat=findPatientByInput(u);
   if(pat){doPatientAutoLogin(pat);return;}
-  toast("未找到匹配账号");
+  loginErr("未找到匹配账号");
+}
+function loginErr(msg){
+  toast(msg);
+  const e=document.getElementById("lgErr");
+  const b=document.getElementById("btnLogin");
+  if(e){e.textContent=msg;e.style.display="block";}
+  if(b){b.focus();b.classList.add("shake");setTimeout(()=>b.classList.remove("shake"),500);}
+}
+function loginErrClear(){
+  const e=document.getElementById("lgErr");
+  if(e)e.style.display="none";
 }
 function findPatientByInput(q){
   const s=String(q||"").trim();if(!s)return null;
@@ -946,6 +960,7 @@ function doPatientAutoLogin(p){
 }
 let _ldCands=[];
 function onUserInput(){
+  loginErrClear();
   const el=document.getElementById("lgUser");if(!el)return;
   const q=el.value.trim();
   const box=document.getElementById("lgDrop");if(!box)return;
@@ -3012,7 +3027,7 @@ function clearTuokeFilter(){DB.settings.tkFrom="";DB.settings.tkTo="";save();ren
 
 /* ==================== PWA 可安装能力（可安装版：电脑+手机） ==================== */
 const PWA_NAME="淄博仁济过敏病研究院治疗执行系统";
-const SW_CODE='const C="zyzz-pro-v1";self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(["./","index.html","sw.js"]).catch(()=>{})));self.skipWaiting();});self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k))));self.clients.claim();});self.addEventListener("fetch",e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=="GET")return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const cp=res.clone();caches.open(C).then(c=>c.put(e.request,cp));return res;}).catch(()=>caches.match("./"))));});';
+const SW_CODE='const C="zyzz-pro-v3";self.addEventListener("install",e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(["./","index.html","sw.js"]).catch(()=>{})));self.skipWaiting();});self.addEventListener("activate",e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k))));self.clients.claim();});self.addEventListener("fetch",e=>{const u=new URL(e.request.url);if(u.origin!==location.origin)return;if(e.request.method!=="GET")return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{const cp=res.clone();caches.open(C).then(c=>c.put(e.request,cp));return res;}).catch(()=>caches.match("./"))));});';
 function setupPWA(){
   try{
     const old=document.querySelector('link[rel="manifest"]');
