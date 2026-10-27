@@ -301,7 +301,7 @@ const INLINE_ORG_PHOTO="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDA
 const ITEM_PRESET=["穴位注射","针灸","埋线","拔罐","艾灸","中药熏蒸","其他治疗"];
 const MAT_PRESET=[{c:"注射类",n:"一次性注射器",u:"支"},{c:"消毒类",n:"棉签",u:"包"},{c:"消毒类",n:"碘伏消毒液",u:"瓶"},{c:"耗材类",n:"针灸针",u:"支"},{c:"耗材类",n:"医用胶布",u:"卷"}];
 
-let DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
+let DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
 let cur=null, view=null, reminderTimer=null, syncTimer=null, formPid=null, shiftTimerInt=null;
 
 /* ==================== 大数据存储引擎（IndexedDB）+ 自检自愈（新增模块） ==================== */
@@ -420,10 +420,10 @@ function autoHeal(issues){
   var fixed=0;
   issues.forEach(function(it){
     if(it.code==="DB_NOT_OBJECT"){DB={};fixed++;}
-    if(it.code==="SETTINGS_MISSING"||!DB.settings||typeof DB.settings!=="object"){DB.settings={syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};fixed++;}
+    if(it.code==="SETTINGS_MISSING"||!DB.settings||typeof DB.settings!=="object"){DB.settings={syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};fixed++;}
     if(it.code.indexOf("TBL_MISSING_")===0){
       var t=it.code.slice(12).toLowerCase();
-      if(t==="settings"){DB.settings={syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};}
+      if(t==="settings"){DB.settings={syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};}
       else DB[t]=[];
       fixed++;
     }
@@ -436,7 +436,7 @@ function autoHeal(issues){
   return fixed;
 }
 function resetToDefaults(){
-  DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
+  DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
   DB.users.push({username:DEF_ADMIN,password:DEF_ADMIN_PASS,role:"admin",displayName:"系统管理员",mustChange:true,scope:"all",createdAt:new Date().toLocaleDateString()});
   DB.users.push({username:"zhuli1",password:DEF_PASS,role:"executor",displayName:"默认执行人",mustChange:false,scope:"all",createdAt:new Date().toLocaleDateString()});
   DB.materials=MAT_PRESET.map(function(m,i){return {id:"m"+(i+1),category:m.c,name:m.n,spec:"常规",unit:m.u,stock:50};});
@@ -671,7 +671,7 @@ function load(){
     if(raw){ DB=JSON.parse(raw); return migrate(); }
     const old=localStorage.getItem("zzzy_patient_records_v2");
     const oldArr=old?JSON.parse(old):[];
-    DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
+    DB={users:[],patients:[],materials:[],execEvals:[],items:[],auditLog:[],loginLog:[],settings:{syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""}};
     DB.users.push({username:DEF_ADMIN,password:DEF_ADMIN_PASS,role:"admin",displayName:"系统管理员",mustChange:true,scope:"all",createdAt:new Date().toLocaleDateString()});
     (oldArr||[]).forEach(r=>{ if(r&&!r._archived) DB.patients.push(migrateRec(r)); });
     DB.users.push({username:"zhuli1",password:DEF_PASS,role:"executor",displayName:"默认执行人",mustChange:false,scope:"all",createdAt:new Date().toLocaleDateString()});
@@ -682,7 +682,9 @@ function load(){
   }catch(e){ return DB; }
 }
 function migrate(){
-  DB.settings=DB.settings||{syncUrl:"",syncKey:"",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};
+  DB.settings=DB.settings||{syncUrl:"6ae009e7ac6210605a54f255",syncKey:"$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK",syncMethod:"jsonbin",syncAuto:false,passUpdated:false,deployUrl:"",deviceLock:false,smsProvider:"",wechatOAuth:false,wechatAppId:"",wechatSecret:"",wechatOAuthDesc:""};
+  if(!DB.settings.syncUrl)DB.settings.syncUrl="6ae009e7ac6210605a54f255";
+  if(!DB.settings.syncKey)DB.settings.syncKey="$2a$10$rrE9Sc6b2b4B0JzjxnnHxuq.aWTLTsnjFilYUxpUTWnUgkV9msSCK";
   DB.settings.matrixCfg=DB.settings.matrixCfg||{webhook:"",webhookOn:false,mpAppId:"",mpSecret:"",siteUrl:"",siteTitle:""};
   DB.settings.referralRule=DB.settings.referralRule||{reward:20,note:"每邀请一位新患者建档并完成首次治疗，奖励 20 积分"};
   DB.settings.checkinRule=DB.settings.checkinRule||{enable:true,reward:1,streakBonus:true,streakDays:7,streakReward:10};
